@@ -1,0 +1,31 @@
+[package]
+name = "clips"
+version = "0.1.0"
+authors = ["jingjiezhuang <jingjie.zhuang@igg.com>"]
+edition = "2018"
+
+[dependencies]
+futures = "^0.1"
+tokio = "^0.1"
+tokio-io = "^0.1"
+tokio-core = "^0.1"
+tokio-uds = "^0.2"
+tokio-tcp = "^0.1"
+bytes = "^0.4"
+byteorder = "*"
+protobuf = "2.6.0"
+
+[build-dependencies]
+protoc-rust = "2.0"
+
+[lib]
+name = "clips"
+path = "src/lib.rs"
+
+[[bin]]
+name = "servo"
+path = "src/servo.rs"
+
+[[bin]]
+name = "bubble"
+path = "src/bubble.rs"
