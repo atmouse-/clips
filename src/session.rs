@@ -90,7 +90,11 @@ impl Session {
             buf.reserve(1024*64);
             let mut n: u32 = 0;
             while buf.len() < 4 {
-                n += try_ready!(self.stream.read_buf(&mut buf)) as u32;
+                let ni = try_ready!(self.stream.read_buf(&mut buf)) as u32;
+                if ni == 0 {
+                    return Ok(Async::Ready(()));
+                }
+                n += ni
             }
             println!("get buf {:?}", &buf);
             let mut magic_size = buf.get(0..4).unwrap();
