@@ -16,7 +16,7 @@ fn handle_monitor(mut stream: TcpStream, state: Arc<Mutex<Shared>>) {
     let mut buf = vec![0; 4];
     // let mut null: Vec<u8> = vec![0; 2];
     // stream.read(&mut null); // skip magic
-    stream.read_exact(&mut buf);
+    stream.read_exact(&mut buf); // FIXME: fix long timeout
     println!("got: raw: {:?}", buf);
     let mut sel: ClipMessage = match protobuf::parse_from_bytes(&buf) {
         Ok(m) => m,
@@ -49,7 +49,10 @@ pub fn spawn(state: Arc<Mutex<Shared>>) -> io::Result<()> {
         let listener = TcpListener::bind(&listen_addr).expect("Cannot bind port 9091!");
 
         for stream in listener.incoming() {
-            handle_monitor(stream.unwrap(), state.clone());
+            let state1 = state.clone();
+            thread::spawn(move || {
+                handle_monitor(stream.unwrap(), state1)
+            });
         }
     });
     Ok(())
