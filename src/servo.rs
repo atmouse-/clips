@@ -8,6 +8,7 @@ extern crate clips;
 use clips::runtime::*;
 use clips::storage::Shared;
 use clips::session::Session;
+use clips::session::StreamWriter;
 use clips::peer::Peer;
 
 use std::thread;
@@ -37,7 +38,6 @@ use bytes::{BufMut, BytesMut};
 
 use protobuf::Message;
 
-mod monitor;
 
 fn handle_session(stream: TcpStream, state: Arc<Mutex<Shared>>) {
     let Session = Session::new(stream);
@@ -46,15 +46,25 @@ fn handle_session(stream: TcpStream, state: Arc<Mutex<Shared>>) {
         .into_future()
         .map_err(|(e, _)| e)
         .and_then(move |(name, mut session)| {
-            let name = match name {
-                Some(name) => name,
-                None => {
-                    println!("Session first {:?} got", session.rd);
-                    return Either::A(future::ok(()));
-                }
-            };
+            // let name = match name {
+            //     Some(name) => name,
+            //     None => {
+            //         println!("Session first {:?} got", session.rd);
+            //         return Either::A(future::ok(()));
+            //     }
+            // };
 
-            println!("{:?} join the chat", name);
+            // println!("{:?} join the chat", name);
+
+            let (rx, mut tx) = session.stream.split();
+            let mut writer = StreamWriter::new(tx);
+
+            let dummy_data = String::from("").into_bytes();
+            let mut msg = ClipMessage::default();
+            msg.set_st_name(3);
+            msg.set_st_size(dummy_data.len() as u32);
+            msg.set_st_type(ClipMessage_msgtype::MSG_GET);
+            msg.set_st_padding(dummy_data);
 
             println!("session second {:?} got", session.rd);
 
@@ -66,7 +76,10 @@ fn handle_session(stream: TcpStream, state: Arc<Mutex<Shared>>) {
                     Ok(m) => m,
                     Err(_) => {
                         println!("parse ClipMessage error");
-                        return Either::A(future::ok(()))
+                        let mut bin = vec!();
+                        msg.write_to_vec(&mut bin).unwrap();
+                        writer.buffer(&bin);
+                        return future::ok(writer)
                     }
                 };
                 
@@ -78,10 +91,12 @@ fn handle_session(stream: TcpStream, state: Arc<Mutex<Shared>>) {
                     },
                     ClipMessage_msgtype::MSG_GET => {
                         println!("get selection!");
-                        let mut img = vec!();
-                        sel.set_st_padding(k.first_blob().unwrap());
-                        println!("get selection! 2");
-                        sel.write_to_vec(&mut img).unwrap();
+                        if let Some(sel) = k.get_selection() {
+                            let mut bin = vec!();
+                            sel.write_to_vec(&mut bin).unwrap();
+                            writer.buffer(&bin);
+                            return future::ok(writer)
+                        }
                         true
                     }
                     _ => false
@@ -98,7 +113,16 @@ fn handle_session(stream: TcpStream, state: Arc<Mutex<Shared>>) {
 
             // Wrap `peer` with `Either::B` to make the return type fit.
             // Either::B(peer)
-            Either::B(future::ok(()))
+            // Either::B(future::ok(()))
+            let mut bin = vec!();
+            msg.write_to_vec(&mut bin).unwrap();
+            writer.buffer(&bin);
+            future::ok(writer)
+        })
+        .and_then(move |writer| { // write back
+            // session.stream.poll_write(&bin).unwrap();
+            tokio::spawn(writer.map_err(|e| println!("{}", e)));
+            future::ok(())
         })
         .map_err(|e| {
             println!("connection error = {:?}", e);
@@ -129,7 +153,7 @@ fn main() {
     });
 
     // PULL
-    monitor::spawn(state.clone());
+    // monitor::spawn(state.clone());
 
     println!("3");
     // let server = rt.block_on(rx).unwrap();

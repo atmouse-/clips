@@ -105,10 +105,20 @@ impl Session {
 
             self.rd.put(buf);
             self.cap_size = self.cap_size - n;
+            if self.cap_size <= 0 {
+                println!("end of message");
+                println!("read ok {:?}", self.rd);
+                return Ok(Async::Ready(()));
+            }
         }
 
         loop {
             println!("in loop");
+            if self.cap_size <= 0 {
+                println!("end of message");
+                println!("read ok {:?}", self.rd);
+                return Ok(Async::Ready(()));
+            }
             self.rd.reserve(1024*64);
 
             let mut buf = BytesMut::new();
@@ -167,5 +177,60 @@ impl Stream for Session {
             println!("in poll not ready");
             Ok(Async::NotReady)
         }
+    }
+}
+
+pub struct StreamWriter {
+    tx: io::WriteHalf<TcpStream>,
+    pub wr: BytesMut,
+}
+
+impl StreamWriter {
+    pub fn new(tx: io::WriteHalf<TcpStream>) -> Self {
+        StreamWriter {
+            tx: tx,
+            wr: BytesMut::new(),
+        }
+    }
+
+    /// Buffer a line.
+    ///
+    /// This writes the line to an internal buffer. Calls to `poll_flush` will
+    /// attempt to flush this buffer to the socket.
+    pub fn buffer(&mut self, line: &[u8]) {
+        // Ensure the buffer has capacity. Ideally this would not be unbounded,
+        // but to keep the example simple, we will not limit this.
+        self.wr.reserve(line.len());
+
+        // Push the line onto the end of the write buffer.
+        //
+        // The `put` function is from the `BufMut` trait.
+        println!("size of poll: {:?}", line.len());
+        println!("write ok {:?}", self.wr);
+        self.wr.put(line);
+    }
+}
+
+impl Future for StreamWriter {
+    type Item = ();
+    type Error = io::Error;
+
+
+    /// Flush the write buffer to the socket
+    fn poll(&mut self) -> Poll<(), io::Error> {
+        // As long as there is buffered data to write, try to write it.
+        while !self.wr.is_empty() {
+            // Try to write some bytes to the socket
+            let n = try_ready!(self.tx.poll_write(&self.wr));
+
+            // As long as the wr is not empty, a successful write should
+            // never write 0 bytes.
+            assert!(n > 0);
+
+            // This discards the first `n` bytes of the buffer.
+            let _ = self.wr.split_to(n);
+        }
+
+        Ok(Async::Ready(()))
     }
 }

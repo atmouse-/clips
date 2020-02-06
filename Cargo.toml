@@ -29,3 +29,7 @@ path = "src/servo.rs"
 [[bin]]
 name = "bubble"
 path = "src/bubble.rs"
+
+[[bin]]
+name = "fizz"
+path = "src/fizz.rs"

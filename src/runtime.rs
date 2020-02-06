@@ -1,5 +1,4 @@
-pub use super::msg::ClipMessage;
-pub use super::msg::ClipMessage_msgtype;
+pub use super::msg::*;
 use tokio::io;
 use tokio::prelude::*;
 use tokio::net::{TcpListener, TcpStream};
