@@ -104,6 +104,14 @@ impl Session {
             println!("get cap_size {}", self.cap_size);
 
             self.rd.put(buf);
+
+            /* unexpect size of broken header */
+            if n > self.cap_size {
+                println!("end of message");
+                println!("read unknown header {:?}", self.rd);
+                return Ok(Async::Ready(()));
+            }
+
             self.cap_size = self.cap_size - n;
             if self.cap_size <= 0 {
                 println!("end of message");
